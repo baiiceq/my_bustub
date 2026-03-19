@@ -198,6 +198,8 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
     return true;
   }
 
+  lock.unlock();
+  disk_scheduler_->DeallocatePage(page_id);
   return true;
 }
 
@@ -279,6 +281,7 @@ auto BufferPoolManager::CheckedWritePage(page_id_t page_id, AccessType access_ty
 
   auto frame = frames_[frame_id];
 
+  frame->rwlatch_.lock();
   frame->page_id_ = page_id;
   frame->is_dirty_ = true;
   page_table_[page_id] = frame_id;
@@ -287,7 +290,7 @@ auto BufferPoolManager::CheckedWritePage(page_id_t page_id, AccessType access_ty
   replacer_->SetEvictable(frame_id, false);
   latch.unlock();
   LoadPage(page_id, *frame);
-  return WritePageGuard(page_id, frame, replacer_, bpm_latch_, disk_scheduler_);
+  return WritePageGuard(page_id, frame, replacer_, bpm_latch_, disk_scheduler_, true);
 }
 
 /**
@@ -352,6 +355,7 @@ auto BufferPoolManager::CheckedReadPage(page_id_t page_id, AccessType access_typ
   }
 
   auto frame = frames_[frame_id];
+  frame->rwlatch_.lock_shared();
   frame->page_id_ = page_id;
   page_table_[page_id] = frame_id;
   frame->pin_count_.store(1);
@@ -360,7 +364,7 @@ auto BufferPoolManager::CheckedReadPage(page_id_t page_id, AccessType access_typ
 
   latch.unlock();
   LoadPage(page_id, *frame);
-  return ReadPageGuard(page_id, frame, replacer_, bpm_latch_, disk_scheduler_);
+  return ReadPageGuard(page_id, frame, replacer_, bpm_latch_, disk_scheduler_, true);
 }
 
 /**
