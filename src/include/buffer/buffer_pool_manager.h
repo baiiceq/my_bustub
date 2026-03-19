@@ -79,7 +79,7 @@ class FrameHeader {
   std::atomic<size_t> pin_count_;
 
   /** @brief The dirty flag. */
-  bool is_dirty_;
+  std::atomic<bool> is_dirty_;
 
   /**
    * @brief A pointer to the data of the page that this frame holds.
@@ -173,5 +173,9 @@ class BufferPoolManager {
    * stored inside of it. Additionally, you may also want to implement a helper function that returns either a shared
    * pointer to a `FrameHeader` that already has a page's data stored inside of it, or an index to said `FrameHeader`.
    */
+  void CommitPage(page_id_t page_id, FrameHeader &frame);
+  void LoadPage(page_id_t page_id, FrameHeader &frame);
+  void ReplacePage(page_id_t old_pid, page_id_t new_pid, FrameHeader &frame, std::promise<void> &&notifier,
+                   std::future<void> &&fence);
 };
 }  // namespace bustub

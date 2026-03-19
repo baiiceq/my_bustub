@@ -34,8 +34,8 @@ struct FrameStatus {
   frame_id_t frame_id_;
   bool evictable_;
   ArcStatus arc_status_;
-  std::list<frame_id_t>::iterator iter;
-  std::list<page_id_t>::iterator giter;
+  std::list<frame_id_t>::iterator iter_;
+  std::list<page_id_t>::iterator giter_;
   FrameStatus(page_id_t pid, frame_id_t fid, bool ev, ArcStatus st)
       : page_id_(pid), frame_id_(fid), evictable_(ev), arc_status_(st) {}
 };
@@ -88,8 +88,8 @@ class ArcReplacer {
 
   // TODO(student): You can add member variables / functions as you like.
 
-  frame_id_t EvictMru();
-  frame_id_t EvictMfu();
+  auto EvictFromList(std::list<frame_id_t> &list, ArcStatus ghost_status) -> frame_id_t;
+
   void EvictGhost();
 };
 
