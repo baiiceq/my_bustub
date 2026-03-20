@@ -118,9 +118,7 @@ auto BufferPoolManager::Size() const -> size_t { return num_frames_; }
  *
  * @return The page ID of the newly allocated page.
  */
-auto BufferPoolManager::NewPage() -> page_id_t {
-  return next_page_id_.fetch_add(1);
-}
+auto BufferPoolManager::NewPage() -> page_id_t { return next_page_id_.fetch_add(1); }
 
 /**
  * @brief Removes a page from the database, both on disk and in memory.
@@ -516,7 +514,9 @@ void BufferPoolManager::FlushAllPagesUnsafe() {
     auto promise = disk_scheduler_->CreatePromise();
     auto future = promise.get_future();
     DiskRequest req{/*is_write=*/true, buffer.get(), frame->page_id_.value(), std::move(promise)};
-    disk_scheduler_->Schedule(std::move(req));
+    std::vector<DiskRequest> requests;
+    requests.push_back(std::move(req));
+    disk_scheduler_->Schedule(requests);
     if (!future.get()) {
       frame->is_dirty_.store(true, std::memory_order_release);
     }
@@ -547,6 +547,7 @@ void BufferPoolManager::FlushAllPages() {
       DiskRequest req{/*is_write=*/true, buffer.get(), frame->page_id_.value(), std::move(promise)};
       disk_scheduler_->Schedule(std::move(req));
       if (future.get()) {
+        frame->is_dirty_ = false;
         frame->is_dirty_.store(false, std::memory_order_release);
       }
     }
@@ -596,7 +597,9 @@ void BufferPoolManager::CommitPage(page_id_t page_id, FrameHeader &frame) {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/true, buffer.get(), page_id, std::move(promise)};
-  disk_scheduler_->Schedule(std::move(req));
+  std::vector<DiskRequest> requests;
+  requests.push_back(std::move(req));
+  disk_scheduler_->Schedule(requests);
   if (future.get()) {
     frame.is_dirty_.store(false, std::memory_order_release);
   } else {

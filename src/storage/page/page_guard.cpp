@@ -134,6 +134,7 @@ auto ReadPageGuard::IsDirty() const -> bool {
  */
 void ReadPageGuard::Flush() {
   BUSTUB_ASSERT(is_valid_, "tried to flush an invalid page guard");
+
   if (!frame_->is_dirty_.load(std::memory_order_acquire)) {
     return;
   }
@@ -143,12 +144,15 @@ void ReadPageGuard::Flush() {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/true, buffer.get(), /*page_id=*/page_id_, std::move(promise)};
-  disk_scheduler_->Schedule(std::move(req));
+  std::vector<DiskRequest> requests;
+  requests.push_back(std::move(req));
+  disk_scheduler_->Schedule(requests);
 
   bool success = future.get();
   if (!success) {
     throw std::runtime_error("failed to flush page to disk");
   }
+
   frame_->is_dirty_.store(false, std::memory_order_release);
 }
 
@@ -306,6 +310,7 @@ auto WritePageGuard::IsDirty() const -> bool {
  */
 void WritePageGuard::Flush() {
   BUSTUB_ASSERT(is_valid_, "tried to flush an invalid page guard");
+
   if (!frame_->is_dirty_.load(std::memory_order_acquire)) {
     return;
   }
@@ -315,7 +320,9 @@ void WritePageGuard::Flush() {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/true, buffer.get(), /*page_id=*/page_id_, std::move(promise)};
-  disk_scheduler_->Schedule(std::move(req));
+  std::vector<DiskRequest> requests;
+  requests.push_back(std::move(req));
+  disk_scheduler_->Schedule(requests);
 
   bool success = future.get();
   if (!success) {
