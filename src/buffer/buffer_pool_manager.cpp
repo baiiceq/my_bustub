@@ -427,9 +427,7 @@ auto BufferPoolManager::FlushPageUnsafe(page_id_t page_id) -> bool {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/true, buffer.get(), page_id, std::move(promise)};
-  std::vector<DiskRequest> requests;
-  requests.push_back(std::move(req));
-  disk_scheduler_->Schedule(requests);
+  disk_scheduler_->Schedule(std::move(req));
   if (!future.get()) {
     frame->is_dirty_.store(true, std::memory_order_release);
     return false;
@@ -478,9 +476,7 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/true, buffer.get(), page_id, std::move(promise)};
-  std::vector<DiskRequest> requests;
-  requests.push_back(std::move(req));
-  disk_scheduler_->Schedule(requests);
+  disk_scheduler_->Schedule(std::move(req));
   if (!future.get()) {
     return false;
   }
@@ -549,9 +545,7 @@ void BufferPoolManager::FlushAllPages() {
       auto promise = disk_scheduler_->CreatePromise();
       auto future = promise.get_future();
       DiskRequest req{/*is_write=*/true, buffer.get(), frame->page_id_.value(), std::move(promise)};
-      std::vector<DiskRequest> requests;
-      requests.push_back(std::move(req));
-      disk_scheduler_->Schedule(requests);
+      disk_scheduler_->Schedule(std::move(req));
       if (future.get()) {
         frame->is_dirty_ = false;
         frame->is_dirty_.store(false, std::memory_order_release);
@@ -618,10 +612,10 @@ void BufferPoolManager::LoadPage(page_id_t page_id, FrameHeader &frame) {
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
   DiskRequest req{/*is_write=*/false, data, page_id, std::move(promise)};
-  std::vector<DiskRequest> requests;
-  requests.push_back(std::move(req));
-  disk_scheduler_->Schedule(requests);
-  future.get();
+  disk_scheduler_->Schedule(std::move(req));
+  if (!future.get()) {
+    throw std::runtime_error("failed to load page from disk");
+  }
 }
 
 void BufferPoolManager::ReplacePage(page_id_t old_pid, page_id_t new_pid, FrameHeader &frame,
@@ -642,16 +636,15 @@ void BufferPoolManager::ReplacePage(page_id_t old_pid, page_id_t new_pid, FrameH
     write_future = promise.get_future();
 
     DiskRequest req{/*is_write=*/true, replacement.get(), old_pid, std::move(promise)};
-
-    std::vector<DiskRequest> requests;
-    requests.push_back(std::move(req));
-
-    disk_scheduler_->Schedule(requests);
+    disk_scheduler_->Schedule(std::move(req));
   }
 
   if (write_future.valid()) {
-    write_future.get();
-    frame.is_dirty_ = false;
+    if (write_future.get()) {
+      frame.is_dirty_.store(false, std::memory_order_release);
+    } else {
+      frame.is_dirty_.store(true, std::memory_order_release);
+    }
   }
 
   notifier.set_value();

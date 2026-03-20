@@ -37,7 +37,7 @@ class Channel {
     std::unique_lock<std::mutex> lk(m_);
     q_.push(std::move(element));
     lk.unlock();
-    cv_.notify_all();
+    cv_.notify_one();
   }
 
   /**
