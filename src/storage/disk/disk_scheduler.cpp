@@ -37,9 +37,11 @@ DiskScheduler::~DiskScheduler() {
  *
  * @param requests The requests to be scheduled.
  */
+void DiskScheduler::Schedule(DiskRequest request) { request_queue_.Put(std::optional<DiskRequest>(std::move(request))); }
+
 void DiskScheduler::Schedule(std::vector<DiskRequest> &requests) {
   for (auto &request : requests) {
-    request_queue_.Put(std::optional<DiskRequest>(std::move(request)));
+    Schedule(std::move(request));
   }
 }
 

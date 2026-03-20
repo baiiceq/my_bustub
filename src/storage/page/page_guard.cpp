@@ -32,17 +32,16 @@ namespace bustub {
  */
 ReadPageGuard::ReadPageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> frame,
                              std::shared_ptr<ArcReplacer> replacer, std::shared_ptr<std::mutex> bpm_latch,
-                             std::shared_ptr<DiskScheduler> disk_scheduler)
+                             std::shared_ptr<DiskScheduler> disk_scheduler, bool frame_is_locked)
     : page_id_(page_id),
       frame_(std::move(frame)),
       replacer_(std::move(replacer)),
       bpm_latch_(std::move(bpm_latch)),
       disk_scheduler_(std::move(disk_scheduler)) {
-  // replacer_->RecordAccess(frame_->frame_id_, page_id_);
-  // replacer_->SetEvictable(frame_->frame_id_, false);
-  frame_->rwlatch_.lock_shared();
+  if (!frame_is_locked) {
+    frame_->rwlatch_.lock_shared();
+  }
   is_valid_ = true;
-  // frame_->pin_count_++;
 }
 
 /**
@@ -135,24 +134,22 @@ auto ReadPageGuard::IsDirty() const -> bool {
  */
 void ReadPageGuard::Flush() {
   BUSTUB_ASSERT(is_valid_, "tried to flush an invalid page guard");
-
-  bool expected = true;
-  if (!frame_->is_dirty_.compare_exchange_strong(expected, false, std::memory_order_relaxed)) {
+  if (!frame_->is_dirty_.load(std::memory_order_acquire)) {
     return;
   }
 
-  char *data = frame_->GetDataMut();
+  auto buffer = std::make_unique<char[]>(BUSTUB_PAGE_SIZE);
+  std::memcpy(buffer.get(), frame_->GetData(), BUSTUB_PAGE_SIZE);
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
-  DiskRequest req{/*is_write=*/true, data, /*page_id=*/page_id_, std::move(promise)};
-  std::vector<DiskRequest> requests;
-  requests.push_back(std::move(req));
-  disk_scheduler_->Schedule(requests);
+  DiskRequest req{/*is_write=*/true, buffer.get(), /*page_id=*/page_id_, std::move(promise)};
+  disk_scheduler_->Schedule(std::move(req));
 
   bool success = future.get();
   if (!success) {
     throw std::runtime_error("failed to flush page to disk");
   }
+  frame_->is_dirty_.store(false, std::memory_order_release);
 }
 
 /**
@@ -200,17 +197,16 @@ ReadPageGuard::~ReadPageGuard() { Drop(); }
  */
 WritePageGuard::WritePageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> frame,
                                std::shared_ptr<ArcReplacer> replacer, std::shared_ptr<std::mutex> bpm_latch,
-                               std::shared_ptr<DiskScheduler> disk_scheduler)
+                               std::shared_ptr<DiskScheduler> disk_scheduler, bool frame_is_locked)
     : page_id_(page_id),
       frame_(std::move(frame)),
       replacer_(std::move(replacer)),
       bpm_latch_(std::move(bpm_latch)),
       disk_scheduler_(std::move(disk_scheduler)) {
-  // replacer_->RecordAccess(frame_->frame_id_, page_id_);
-  // replacer_->SetEvictable(frame_->frame_id_, false);
-  frame_->rwlatch_.lock();
+  if (!frame_is_locked) {
+    frame_->rwlatch_.lock();
+  }
   is_valid_ = true;
-  // frame_->pin_count_++;
 }
 
 /**
@@ -291,6 +287,7 @@ auto WritePageGuard::GetData() const -> const char * {
  */
 auto WritePageGuard::GetDataMut() -> char * {
   BUSTUB_ENSURE(is_valid_, "tried to use an invalid write guard");
+  frame_->is_dirty_.store(true, std::memory_order_release);
   return frame_->GetDataMut();
 }
 
@@ -309,24 +306,22 @@ auto WritePageGuard::IsDirty() const -> bool {
  */
 void WritePageGuard::Flush() {
   BUSTUB_ASSERT(is_valid_, "tried to flush an invalid page guard");
-
-  bool expected = true;
-  if (!frame_->is_dirty_.compare_exchange_strong(expected, false, std::memory_order_relaxed)) {
+  if (!frame_->is_dirty_.load(std::memory_order_acquire)) {
     return;
   }
 
-  char *data = frame_->GetDataMut();
+  auto buffer = std::make_unique<char[]>(BUSTUB_PAGE_SIZE);
+  std::memcpy(buffer.get(), frame_->GetData(), BUSTUB_PAGE_SIZE);
   auto promise = disk_scheduler_->CreatePromise();
   auto future = promise.get_future();
-  DiskRequest req{/*is_write=*/true, data, /*page_id=*/page_id_, std::move(promise)};
-  std::vector<DiskRequest> requests;
-  requests.push_back(std::move(req));
-  disk_scheduler_->Schedule(requests);
+  DiskRequest req{/*is_write=*/true, buffer.get(), /*page_id=*/page_id_, std::move(promise)};
+  disk_scheduler_->Schedule(std::move(req));
 
   bool success = future.get();
   if (!success) {
     throw std::runtime_error("failed to flush page to disk");
   }
+  frame_->is_dirty_.store(false, std::memory_order_release);
 }
 
 /**
