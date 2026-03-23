@@ -15,6 +15,7 @@
 #include "common/exception.h"
 #include "common/rid.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "b_plus_tree_leaf_page.h"
 
 namespace bustub {
 
@@ -32,7 +33,13 @@ namespace bustub {
  * @param max_size Max size of the leaf node
  */
 FULL_INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(int max_size) { UNIMPLEMENTED("TODO(P2): Add implementation."); }
+void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(int max_size) 
+{
+  SetPageType(IndexPageType::LEAF_PAGE);
+  SetSize(0);
+  SetMaxSize(max_size);
+  SetNextPageId(INVALID_PAGE_ID);
+}
 
 /**
  * @brief Helper function for fetching tombstones of a page.
@@ -60,6 +67,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
  */
 FULL_INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType { UNIMPLEMENTED("TODO(P2): Add implementation."); }
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType { return ValueType(); }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 
@@ -75,3 +83,4 @@ template class BPlusTreeLeafPage<GenericKey<32>, RID, GenericComparator<32>>;
 
 template class BPlusTreeLeafPage<GenericKey<64>, RID, GenericComparator<64>>;
 }  // namespace bustub
+

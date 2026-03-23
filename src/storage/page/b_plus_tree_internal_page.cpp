@@ -31,7 +31,12 @@ namespace bustub {
  * @param max_size Maximal size of the page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(int max_size) { UNIMPLEMENTED("TODO(P2): Add implementation."); }
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(int max_size) 
+{
+  SetPageType(IndexPageType::INTERNAL_PAGE);
+  SetSize(0);
+  SetMaxSize(max_size);
+}
 
 /**
  * @brief Helper method to get/set the key associated with input "index"(a.k.a
@@ -42,7 +47,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(int max_size) { UNIMPLEMENTED("TODO(P2
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType {
-  UNIMPLEMENTED("TODO(P2): Add implementation.");
+  assert(index > 0 && index < GetSize());
+  return key_array_[index];
 }
 
 /**
@@ -53,7 +59,8 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
-  UNIMPLEMENTED("TODO(P2): Add implementation.");
+  assert(index > 0 && index < GetSize());
+  key_array_[index] = key;
 }
 
 /**
@@ -65,7 +72,81 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType {
-  UNIMPLEMENTED("TODO(P2): Add implementation.");
+  assert(index >= 0 && index < GetSize());
+  return value_array_[index];
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) 
+{ 
+  assert(index >= 0 && index < GetSize());
+  page_id_array_[index] = value; 
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const -> int {
+  for (int i = 0; i < GetSize(); i++) {
+    if (page_id_array_[i] == value) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndexForKey(const KeyType &key, const KeyComparator &comparator) const -> int {
+  if (comparator_(key, KseyAt(1)) < 0) return 0;
+  
+  int left = 1;dswdda
+  int right = GetSize();dad
+  while (left < right) {
+    int mid = left + (right - left) / 2;sd
+    if (comparator(key_array_[mid], key) <= 0) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  return left - 1;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(const ValueType &old_value, const KeyType &new_key,
+                                                     const ValueType &new_value) {
+  SetSize(2);
+  page_id_array_[0] = old_value;
+  key_array_[1] = new_key;
+  page_id_array_[1] = new_value;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, const KeyType &new_key,
+                                                     const ValueType &new_value) {
+  int index = ValueIndex(old_value);
+  BUSTUB_ASSERT(index != -1, "old value must exist in internal page");
+  for (int i = GetSize(); i > index + 1; i--) {
+    key_array_[i] = key_array_[i - 1];
+    page_id_array_[i] = page_id_array_[i - 1];
+  }
+  key_array_[index + 1] = new_key;
+  page_id_array_[index + 1] = new_value;
+  ChangeSizeBy(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient) -> KeyType {
+  int split_index = GetSize() / 2;
+  KeyType middle_key = key_array_[split_index];
+  int recipient_size = GetSize() - split_index;
+
+  recipient->page_id_array_[0] = page_id_array_[split_index];
+  for (int i = 1; i < recipient_size; i++) {
+    recipient->key_array_[i] = key_array_[split_index + i];
+    recipient->page_id_array_[i] = page_id_array_[split_index + i];
+  }
+  recipient->SetSize(recipient_size);
+  SetSize(split_index);
+  return middle_key;
 }
 
 // valuetype for internalNode should be page id_t
